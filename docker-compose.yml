@@ -47,30 +47,6 @@ services:
       retries: 10
 
   ##############################################################################
-  # db-setup — Resets internal Supabase user passwords to match POSTGRES_PASSWORD.
-  # Runs once after db is healthy, before any service tries to connect.
-  # Fixes stale volumes where passwords were initialized with different credentials.
-  ##############################################################################
-  db-setup:
-    <<: *supabase-common
-    image: postgres:17-alpine
-    restart: "no"
-    depends_on:
-      db:
-        condition: service_healthy
-    environment:
-      PGPASSWORD: ${POSTGRES_PASSWORD}
-    entrypoint: ["/bin/sh", "-c"]
-    command:
-      - |
-        psql -h db -U postgres -d postgres \
-          -c "ALTER ROLE postgres WITH PASSWORD '$$POSTGRES_PASSWORD';" \
-          -c "ALTER ROLE supabase_auth_admin WITH PASSWORD '$$POSTGRES_PASSWORD';" \
-          -c "ALTER ROLE supabase_storage_admin WITH PASSWORD '$$POSTGRES_PASSWORD';" \
-          -c "ALTER ROLE authenticator WITH PASSWORD '$$POSTGRES_PASSWORD';" \
-          -c "ALTER ROLE supabase_admin WITH PASSWORD '$$POSTGRES_PASSWORD';"
-
-  ##############################################################################
   # Kong — API gateway
   # Dokploy domain: supabase.yourdomain.com → kong:8000
   # WebSocket: enable WebSocket support in Dokploy domain settings (see README)
@@ -112,8 +88,8 @@ services:
     expose:
       - "9999"
     depends_on:
-      db-setup:
-        condition: service_completed_successfully
+      db:
+        condition: service_healthy
     environment:
       GOTRUE_API_HOST: "0.0.0.0"
       GOTRUE_API_PORT: 9999
@@ -158,8 +134,8 @@ services:
     expose:
       - "3000"
     depends_on:
-      db-setup:
-        condition: service_completed_successfully
+      db:
+        condition: service_healthy
     environment:
       PGRST_DB_URI: postgres://authenticator:${POSTGRES_PASSWORD}@db:5432/postgres
       PGRST_DB_SCHEMAS: public,storage,graphql_public
@@ -179,8 +155,8 @@ services:
     expose:
       - "4000"
     depends_on:
-      db-setup:
-        condition: service_completed_successfully
+      db:
+        condition: service_healthy
     environment:
       PORT: 4000
       DB_HOST: db
@@ -212,8 +188,8 @@ services:
     expose:
       - "5000"
     depends_on:
-      db-setup:
-        condition: service_completed_successfully
+      db:
+        condition: service_healthy
       rest:
         condition: service_started
       imgproxy:
@@ -265,8 +241,8 @@ services:
     expose:
       - "8080"
     depends_on:
-      db-setup:
-        condition: service_completed_successfully
+      db:
+        condition: service_healthy
     environment:
       PG_META_PORT: 8080
       PG_META_DB_HOST: db
