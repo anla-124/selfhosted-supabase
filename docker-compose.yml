@@ -214,6 +214,49 @@ services:
       interval: 10s
       timeout: 5s
       retries: 10
+      start_period: 30s
+
+  ##############################################################################
+  # realtime-seed — inserts the realtime-dev tenant row after migrations run.
+  # Realtime requires a tenant record in _realtime.tenants to serve WebSocket
+  # connections. The supabase/postgres image normally seeds this via init
+  # scripts; we replicate that here since we don't mount the init dir.
+  ##############################################################################
+  realtime-seed:
+    <<: *supabase-common
+    image: postgres:17-alpine
+    restart: "no"
+    depends_on:
+      realtime:
+        condition: service_started
+    environment:
+      PGPASSWORD: ${POSTGRES_PASSWORD}
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - |
+        until psql -h db -U supabase_admin -d postgres \
+          -c "SELECT 1 FROM _realtime.tenants LIMIT 1" > /dev/null 2>&1; do
+          echo "Waiting for _realtime.tenants table..."
+          sleep 3
+        done
+        psql -h db -U supabase_admin -d postgres -c "
+          INSERT INTO _realtime.tenants (
+            id, name, external_id, jwt_secret,
+            max_concurrent_users, inserted_at, updated_at,
+            max_events_per_second, postgres_cdc_default,
+            max_bytes_per_second, max_channels_per_client,
+            max_joins_per_second, suspend, extensions
+          ) VALUES (
+            gen_random_uuid(),
+            'realtime-dev', 'realtime-dev',
+            '${JWT_SECRET}',
+            200, now(), now(),
+            100, 'postgres_cdc_rls',
+            100000, 100, 500, false,
+            '[{\"type\":\"postgres_cdc_rls\",\"settings\":{\"db_host\":\"db\",\"db_name\":\"postgres\",\"db_user\":\"supabase_admin\",\"db_password\":\"${POSTGRES_PASSWORD}\",\"db_port\":\"5432\",\"poll_interval_ms\":100,\"poll_max_changes\":100,\"poll_max_record_size\":1048576,\"ip_version\":4,\"db_ssl\":false}}]'::jsonb
+          ) ON CONFLICT (external_id) DO NOTHING;
+        "
+        echo "Realtime tenant seeded."
 
   ##############################################################################
   # Storage — File storage API (PDF uploads)
