@@ -77,7 +77,8 @@ services:
         psql -h db -U supabase_admin -d postgres \
           -c "ALTER ROLE supabase_auth_admin    WITH PASSWORD '${POSTGRES_PASSWORD}';" \
           -c "ALTER ROLE supabase_storage_admin WITH PASSWORD '${POSTGRES_PASSWORD}';" \
-          -c "ALTER ROLE authenticator          WITH PASSWORD '${POSTGRES_PASSWORD}';"
+          -c "ALTER ROLE authenticator          WITH PASSWORD '${POSTGRES_PASSWORD}';" \
+          -c "CREATE SCHEMA IF NOT EXISTS _realtime; GRANT ALL ON SCHEMA _realtime TO supabase_admin;"
 
   ##############################################################################
   # Kong — API gateway
