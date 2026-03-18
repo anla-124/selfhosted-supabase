@@ -8,7 +8,15 @@
 #   - env_file: .env on each service
 #   - PostgreSQL 17 to match pdf-search app config (major_version = 17)
 #   - No supavisor — app uses HTTP/PostgREST, not direct Postgres connections
-#   - volumes/db/init/02_passwords.sh resets internal role passwords on first init
+#   - db-setup resets internal role passwords after db init (required — see below)
+#
+# Why db-setup is required:
+#   supabase/postgres:17.x uses 'supabase_admin' as its superuser (not 'postgres').
+#   The image's built-in init scripts create roles (supabase_auth_admin, authenticator,
+#   supabase_storage_admin) with hardcoded passwords. db-setup resets them all to
+#   POSTGRES_PASSWORD so auth/rest/realtime/storage can connect.
+#   Do NOT mount ./volumes/db/init into /docker-entrypoint-initdb.d — that overrides
+#   the image's own init scripts and breaks role creation entirely.
 ###############################################################################
 
 x-supabase-common: &supabase-common
@@ -29,8 +37,8 @@ services:
 
   ##############################################################################
   # PostgreSQL 17
-  # Let the supabase/postgres image run its own built-in init scripts.
-  # Mounting /docker-entrypoint-initdb.d would override them and break role creation.
+  # Do NOT mount ./volumes/db/init into /docker-entrypoint-initdb.d — it overrides
+  # the image's built-in scripts and prevents role creation.
   ##############################################################################
   db:
     <<: *supabase-common
@@ -43,10 +51,33 @@ services:
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
       POSTGRES_DB: ${POSTGRES_DB:-postgres}
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U postgres -d postgres"]
+      test: ["CMD-SHELL", "pg_isready -U supabase_admin -d postgres"]
       interval: 10s
       timeout: 5s
       retries: 10
+
+  ##############################################################################
+  # db-setup — resets internal role passwords to POSTGRES_PASSWORD.
+  # supabase/postgres superuser is 'supabase_admin' (not 'postgres').
+  # Internal roles (supabase_auth_admin, supabase_storage_admin, authenticator)
+  # are created with hardcoded passwords during image init; this fixes them.
+  ##############################################################################
+  db-setup:
+    <<: *supabase-common
+    image: postgres:17-alpine
+    restart: "no"
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      PGPASSWORD: ${POSTGRES_PASSWORD}
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - |
+        psql -h db -U supabase_admin -d postgres \
+          -c "ALTER ROLE supabase_auth_admin    WITH PASSWORD '${POSTGRES_PASSWORD}';" \
+          -c "ALTER ROLE supabase_storage_admin WITH PASSWORD '${POSTGRES_PASSWORD}';" \
+          -c "ALTER ROLE authenticator          WITH PASSWORD '${POSTGRES_PASSWORD}';"
 
   ##############################################################################
   # Kong — API gateway
@@ -90,8 +121,8 @@ services:
     expose:
       - "9999"
     depends_on:
-      db:
-        condition: service_healthy
+      db-setup:
+        condition: service_completed_successfully
     environment:
       GOTRUE_API_HOST: "0.0.0.0"
       GOTRUE_API_PORT: 9999
@@ -136,8 +167,8 @@ services:
     expose:
       - "3000"
     depends_on:
-      db:
-        condition: service_healthy
+      db-setup:
+        condition: service_completed_successfully
     environment:
       PGRST_DB_URI: postgres://authenticator:${POSTGRES_PASSWORD}@db:5432/postgres
       PGRST_DB_SCHEMAS: public,storage,graphql_public
@@ -157,8 +188,8 @@ services:
     expose:
       - "4000"
     depends_on:
-      db:
-        condition: service_healthy
+      db-setup:
+        condition: service_completed_successfully
     environment:
       PORT: 4000
       DB_HOST: db
@@ -190,8 +221,8 @@ services:
     expose:
       - "5000"
     depends_on:
-      db:
-        condition: service_healthy
+      db-setup:
+        condition: service_completed_successfully
       rest:
         condition: service_started
       imgproxy:
@@ -243,8 +274,8 @@ services:
     expose:
       - "8080"
     depends_on:
-      db:
-        condition: service_healthy
+      db-setup:
+        condition: service_completed_successfully
     environment:
       PG_META_PORT: 8080
       PG_META_DB_HOST: db
