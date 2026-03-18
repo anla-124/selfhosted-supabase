@@ -1,0 +1,288 @@
+###############################################################################
+# Supabase Self-Hosted — Dokploy-Compatible
+#
+# Key differences from the official docker-compose.yml:
+#   - No `container_name` (Dokploy names containers automatically)
+#   - No `ports:` mappings — uses `expose:` only; Traefik routes traffic
+#   - All services join `dokploy-network` (external, created by Dokploy)
+#   - env_file: .env on each service
+#   - PostgreSQL 17 to match pdf-search app config (major_version = 17)
+#   - No supavisor — app uses HTTP/PostgREST, not direct Postgres connections
+###############################################################################
+
+x-supabase-common: &supabase-common
+  env_file: .env
+  networks:
+    - dokploy-network
+  restart: unless-stopped
+
+networks:
+  dokploy-network:
+    external: true
+
+volumes:
+  db_data:
+  storage_data:
+
+services:
+
+  ##############################################################################
+  # PostgreSQL 17
+  ##############################################################################
+  db:
+    <<: *supabase-common
+    image: supabase/postgres:17.4.1.182
+    expose:
+      - "5432"
+    volumes:
+      - db_data:/var/lib/postgresql/data
+      - ./volumes/db/init:/docker-entrypoint-initdb.d
+    environment:
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB:-postgres}
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  ##############################################################################
+  # Kong — API gateway
+  # Dokploy domain: supabase.yourdomain.com → kong:8000
+  # WebSocket: enable WebSocket support in Dokploy domain settings (see README)
+  ##############################################################################
+  kong:
+    <<: *supabase-common
+    image: kong:2.8.1
+    expose:
+      - "8000"
+      - "8443"
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      KONG_DATABASE: "off"
+      KONG_DECLARATIVE_CONFIG: /etc/kong/kong.yml
+      KONG_DNS_ORDER: LAST,A,CNAME
+      KONG_PLUGINS: request-transformer,cors,key-auth,acl,basic-auth
+      KONG_NGINX_PROXY_PROXY_BUFFER_SIZE: 160k
+      KONG_NGINX_PROXY_PROXY_BUFFERS: "64 160k"
+      ANON_KEY: ${ANON_KEY}
+      SERVICE_ROLE_KEY: ${SERVICE_ROLE_KEY}
+      DASHBOARD_USERNAME: ${DASHBOARD_USERNAME:-supabase}
+      DASHBOARD_PASSWORD: ${DASHBOARD_PASSWORD}
+    volumes:
+      - ./volumes/api/kong.yml:/etc/kong/kong.yml:ro
+    labels:
+      # WebSocket passthrough for /realtime/v1/websocket (Option B — Traefik labels)
+      # If Dokploy UI has a WebSocket toggle in domain settings, use that instead.
+      traefik.http.middlewares.supabase-ws.headers.customrequestheaders.Upgrade: "websocket"
+      traefik.http.middlewares.supabase-ws.headers.customrequestheaders.Connection: "Upgrade"
+
+  ##############################################################################
+  # Auth — GoTrue (Google OAuth only)
+  ##############################################################################
+  auth:
+    <<: *supabase-common
+    image: supabase/gotrue:v2.164.0
+    expose:
+      - "9999"
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      GOTRUE_API_HOST: "0.0.0.0"
+      GOTRUE_API_PORT: 9999
+      API_EXTERNAL_URL: ${API_EXTERNAL_URL}
+
+      GOTRUE_DB_DRIVER: postgres
+      GOTRUE_DB_DATABASE_URL: postgres://supabase_auth_admin:${POSTGRES_PASSWORD}@db:5432/postgres
+
+      GOTRUE_SITE_URL: ${SITE_URL}
+      GOTRUE_URI_ALLOW_LIST: ${ADDITIONAL_REDIRECT_URLS}
+      GOTRUE_DISABLE_SIGNUP: ${GOTRUE_DISABLE_SIGNUP:-false}
+      GOTRUE_JWT_ADMIN_ROLES: service_role
+      GOTRUE_JWT_AUD: authenticated
+      GOTRUE_JWT_DEFAULT_GROUP_NAME: authenticated
+      GOTRUE_JWT_EXP: ${GOTRUE_JWT_EXP:-3600}
+      GOTRUE_JWT_SECRET: ${JWT_SECRET}
+
+      # Email confirmation disabled — auth is Google OAuth only.
+      # Keeps dev email/password logins (localhost) working without SMTP.
+      GOTRUE_MAILER_AUTOCONFIRM: "true"
+
+      # Google OAuth
+      GOTRUE_EXTERNAL_GOOGLE_ENABLED: "true"
+      GOTRUE_EXTERNAL_GOOGLE_CLIENT_ID: ${GOTRUE_EXTERNAL_GOOGLE_CLIENT_ID}
+      GOTRUE_EXTERNAL_GOOGLE_SECRET: ${GOTRUE_EXTERNAL_GOOGLE_SECRET}
+      GOTRUE_EXTERNAL_GOOGLE_REDIRECT_URI: ${API_EXTERNAL_URL}/auth/v1/callback
+
+      GOTRUE_EXTERNAL_PHONE_ENABLED: "false"
+      GOTRUE_SMS_AUTOCONFIRM: "true"
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:9999/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  ##############################################################################
+  # REST — PostgREST
+  ##############################################################################
+  rest:
+    <<: *supabase-common
+    image: postgrest/postgrest:v12.2.0
+    expose:
+      - "3000"
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      PGRST_DB_URI: postgres://authenticator:${POSTGRES_PASSWORD}@db:5432/postgres
+      PGRST_DB_SCHEMAS: public,storage,graphql_public
+      PGRST_DB_ANON_ROLE: anon
+      PGRST_JWT_SECRET: ${JWT_SECRET}
+      PGRST_DB_USE_LEGACY_GUCS: "false"
+      PGRST_APP_SETTINGS_JWT_SECRET: ${JWT_SECRET}
+      PGRST_APP_SETTINGS_JWT_EXP: ${GOTRUE_JWT_EXP:-3600}
+    command: ["postgrest"]
+
+  ##############################################################################
+  # Realtime — WebSocket subscriptions (postgres_changes)
+  ##############################################################################
+  realtime:
+    <<: *supabase-common
+    image: supabase/realtime:v2.33.72
+    expose:
+      - "4000"
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      PORT: 4000
+      DB_HOST: db
+      DB_PORT: 5432
+      DB_USER: supabase_admin
+      DB_PASSWORD: ${POSTGRES_PASSWORD}
+      DB_NAME: postgres
+      DB_AFTER_CONNECT_QUERY: "SET search_path TO _realtime"
+      DB_ENC_KEY: ${VAULT_ENC_KEY}
+      API_JWT_SECRET: ${JWT_SECRET}
+      FLY_ALLOC_ID: fly123
+      FLY_APP_NAME: realtime
+      SECRET_KEY_BASE: ${SECRET_KEY_BASE}
+      ERL_AFLAGS: "-proto_dist inet_tcp"
+      ENABLE_TAILSCALE: "false"
+      DNS_NODES: "''"
+    healthcheck:
+      test: ["CMD", "curl", "-sSfL", "--head", "-o", "/dev/null", "-H", "Authorization: Bearer ${ANON_KEY}", "http://localhost:4000/api/tenants/realtime-dev/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  ##############################################################################
+  # Storage — File storage API (PDF uploads)
+  ##############################################################################
+  storage:
+    <<: *supabase-common
+    image: supabase/storage-api:v1.11.13
+    expose:
+      - "5000"
+    depends_on:
+      db:
+        condition: service_healthy
+      rest:
+        condition: service_started
+      imgproxy:
+        condition: service_started
+    volumes:
+      - storage_data:/var/lib/storage
+    environment:
+      ANON_KEY: ${ANON_KEY}
+      SERVICE_KEY: ${SERVICE_ROLE_KEY}
+      POSTGREST_URL: http://rest:3000
+      PGRST_JWT_SECRET: ${JWT_SECRET}
+      DATABASE_URL: postgres://supabase_storage_admin:${POSTGRES_PASSWORD}@db:5432/postgres
+      FILE_SIZE_LIMIT: ${FILE_SIZE_LIMIT:-52428800}
+      STORAGE_BACKEND: file
+      FILE_STORAGE_BACKEND_PATH: /var/lib/storage
+      TENANT_ID: stub
+      IMGPROXY_URL: http://imgproxy:5001
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:5000/status"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  ##############################################################################
+  # imgproxy — Required by Storage (cannot be removed without patching Storage)
+  ##############################################################################
+  imgproxy:
+    <<: *supabase-common
+    image: darthsim/imgproxy:v3.8.0
+    expose:
+      - "5001"
+    environment:
+      IMGPROXY_BIND: ":5001"
+      IMGPROXY_LOCAL_FILESYSTEM_ROOT: /
+      IMGPROXY_USE_ETAG: "true"
+      IMGPROXY_ENABLE_WEBP_DETECTION: "true"
+    healthcheck:
+      test: ["CMD", "imgproxy", "health"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  ##############################################################################
+  # postgres-meta — Metadata API (used by Studio)
+  ##############################################################################
+  meta:
+    <<: *supabase-common
+    image: supabase/postgres-meta:v0.84.2
+    expose:
+      - "8080"
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      PG_META_PORT: 8080
+      PG_META_DB_HOST: db
+      PG_META_DB_PORT: 5432
+      PG_META_DB_NAME: postgres
+      PG_META_DB_USER: supabase
+      PG_META_DB_PASSWORD: ${POSTGRES_PASSWORD}
+      PG_META_CRYPTO_KEY: ${PG_META_CRYPTO_KEY}
+
+  ##############################################################################
+  # Studio — Supabase Dashboard
+  # SECURITY: Do NOT expose Studio publicly in production.
+  # Access via SSH tunnel: ssh -L 3000:localhost:3000 user@server
+  # See README for details.
+  ##############################################################################
+  studio:
+    <<: *supabase-common
+    image: supabase/studio:20250317-6955350
+    expose:
+      - "3000"
+    depends_on:
+      auth:
+        condition: service_healthy
+      meta:
+        condition: service_started
+    environment:
+      STUDIO_PG_META_URL: http://meta:8080
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+
+      DEFAULT_ORGANIZATION_NAME: "Default Organization"
+      DEFAULT_PROJECT_NAME: "Default Project"
+
+      SUPABASE_URL: http://kong:8000
+      SUPABASE_PUBLIC_URL: ${SUPABASE_PUBLIC_URL}
+      SUPABASE_ANON_KEY: ${ANON_KEY}
+      SUPABASE_SERVICE_KEY: ${SERVICE_ROLE_KEY}
+
+      AUTH_JWT_SECRET: ${JWT_SECRET}
+
+      LOGFLARE_API_KEY: ""
+      LOGFLARE_URL: ""
+      NEXT_PUBLIC_ENABLE_LOGS: "false"
+      NEXT_ANALYTICS_BACKEND_PROVIDER: postgres
