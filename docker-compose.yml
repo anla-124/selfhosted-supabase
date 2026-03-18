@@ -22,15 +22,15 @@ networks:
     external: true
 
 volumes:
-  db_data_v3:
+  db_data_v4:
   storage_data:
 
 services:
 
   ##############################################################################
   # PostgreSQL 17
-  # 02_passwords.sh runs during first-time init and sets all internal role
-  # passwords to POSTGRES_PASSWORD (they are hardcoded otherwise).
+  # Let the supabase/postgres image run its own built-in init scripts.
+  # Mounting /docker-entrypoint-initdb.d would override them and break role creation.
   ##############################################################################
   db:
     <<: *supabase-common
@@ -38,8 +38,7 @@ services:
     expose:
       - "5432"
     volumes:
-      - db_data_v3:/var/lib/postgresql/data
-      - ./volumes/db/init:/docker-entrypoint-initdb.d
+      - db_data_v4:/var/lib/postgresql/data
     environment:
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
       POSTGRES_DB: ${POSTGRES_DB:-postgres}
