@@ -107,18 +107,6 @@ services:
       DASHBOARD_PASSWORD: ${DASHBOARD_PASSWORD}
     volumes:
       - ./volumes/api/kong.yml:/etc/kong/kong.yml:ro
-    labels:
-      traefik.enable: "true"
-      traefik.docker.network: dokploy-network
-      traefik.http.routers.supabase-kong.rule: "Host(`supabase.anduincapital.dev`)"
-      traefik.http.routers.supabase-kong.entrypoints: websecure
-      traefik.http.routers.supabase-kong.tls: "true"
-      traefik.http.routers.supabase-kong.tls.certresolver: letsencrypt
-      traefik.http.services.supabase-kong.loadbalancer.server.port: "8000"
-      # WebSocket passthrough for /realtime/v1/websocket
-      traefik.http.middlewares.supabase-ws.headers.customrequestheaders.Upgrade: "websocket"
-      traefik.http.middlewares.supabase-ws.headers.customrequestheaders.Connection: "Upgrade"
-      traefik.http.routers.supabase-kong.middlewares: supabase-ws
 
   ##############################################################################
   # Auth — GoTrue (Google OAuth only)
