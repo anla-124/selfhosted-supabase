@@ -7,13 +7,19 @@ consumers:
   - username: ANON
     keyauth_credentials:
       - key: ${ANON_KEY}
+    acls:
+      - group: anon
   - username: SERVICE_ROLE
     keyauth_credentials:
       - key: ${SERVICE_ROLE_KEY}
+    acls:
+      - group: admin
   - username: DASHBOARD
     basicauth_credentials:
       - username: ${DASHBOARD_USERNAME}
         password: ${DASHBOARD_PASSWORD}
+    acls:
+      - group: admin
 
 ###############################################################################
 # Plugins (global)
