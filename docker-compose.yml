@@ -308,12 +308,6 @@ services:
     image: supabase/studio:20250317-6955350
     expose:
       - "3000"
-    labels:
-      - traefik.enable=true
-      - traefik.docker.network=dokploy-network
-      - traefik.http.routers.supabase-studio.rule=Host(`studio.anduincapital.dev`)
-      - traefik.http.routers.supabase-studio.entrypoints=web
-      - traefik.http.services.supabase-studio.loadbalancer.server.port=3000
     depends_on:
       auth:
         condition: service_healthy

@@ -210,3 +210,11 @@ services:
           hide_groups_header: true
           allow:
             - admin
+
+  - name: studio-hostname
+    url: http://studio:3000/
+    routes:
+      - name: studio-hostname-all
+        hosts:
+          - studio.anduincapital.dev
+        strip_path: false
