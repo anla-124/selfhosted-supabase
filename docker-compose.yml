@@ -95,9 +95,8 @@ services:
       db:
         condition: service_healthy
     # Entrypoint substitutes ${VAR} in kong.yml before Kong starts.
-    # Kong's DB-less declarative config does not expand env vars natively,
-    # so we use bash eval to do shell substitution on temp.yml → kong.yml.
-    entrypoint: bash -c 'eval "echo \"$$(cat /home/kong/temp.yml)\"" > /home/kong/kong.yml && /docker-entrypoint.sh kong docker-start'
+    # Kong DB-less mode does not expand env vars natively; envsubst handles it.
+    entrypoint: /bin/sh -c 'envsubst < /home/kong/temp.yml > /home/kong/kong.yml && /docker-entrypoint.sh kong docker-start'
     environment:
       KONG_DATABASE: "off"
       KONG_DECLARATIVE_CONFIG: /home/kong/kong.yml

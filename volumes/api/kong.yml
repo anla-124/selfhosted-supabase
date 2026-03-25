@@ -1,8 +1,5 @@
 _format_version: "1.1"
 
-###############################################################################
-# Consumers
-###############################################################################
 consumers:
   - username: ANON
     keyauth_credentials:
@@ -21,9 +18,6 @@ consumers:
     acls:
       - group: admin
 
-###############################################################################
-# Plugins (global)
-###############################################################################
 plugins:
   - name: cors
     config:
@@ -51,11 +45,7 @@ plugins:
       credentials: true
       max_age: 3600
 
-###############################################################################
-# Services & Routes
-###############################################################################
 services:
-  ## ── Auth ────────────────────────────────────────────────────────────────
   - name: auth-v1-open
     url: http://auth:9999/verify
     routes:
@@ -93,7 +83,6 @@ services:
           hide_credentials: false
 
   - name: auth-v1
-    _comment: "GoTrue: /auth/v1/* -> http://auth:9999/*"
     url: http://auth:9999/
     routes:
       - name: auth-v1-all
@@ -111,9 +100,7 @@ services:
             - admin
             - anon
 
-  ## ── REST ────────────────────────────────────────────────────────────────
   - name: rest-v1
-    _comment: "PostgREST: /rest/v1/* -> http://rest:3000/*"
     url: http://rest:3000/
     routes:
       - name: rest-v1-all
@@ -131,9 +118,7 @@ services:
             - admin
             - anon
 
-  ## ── GraphQL ─────────────────────────────────────────────────────────────
   - name: graphql-v1
-    _comment: "PostgREST GraphQL: /graphql/v1/* -> http://rest:3000/rpc/graphql"
     url: http://rest:3000/rpc/graphql
     routes:
       - name: graphql-v1-all
@@ -156,9 +141,7 @@ services:
             headers:
               - Content-Profile:graphql_public
 
-  ## ── Realtime ────────────────────────────────────────────────────────────
   - name: realtime-v1
-    _comment: "Realtime: /realtime/v1/* -> http://realtime:4000/socket/*"
     url: http://realtime:4000/socket/
     routes:
       - name: realtime-v1-all
@@ -176,9 +159,7 @@ services:
             - admin
             - anon
 
-  ## ── Storage ─────────────────────────────────────────────────────────────
   - name: storage-v1
-    _comment: "Storage: /storage/v1/* -> http://storage:5000/*"
     url: http://storage:5000/
     routes:
       - name: storage-v1-all
@@ -196,9 +177,7 @@ services:
             - admin
             - anon
 
-  ## ── postgres-meta ────────────────────────────────────────────────────────
   - name: meta
-    _comment: "postgres-meta: /pg-meta/* -> http://meta:8080/*"
     url: http://meta:8080/
     routes:
       - name: meta-all
@@ -215,9 +194,7 @@ services:
           allow:
             - admin
 
-  ## ── Studio ──────────────────────────────────────────────────────────────
   - name: studio
-    _comment: "Studio: /studio/* -> http://studio:3000/*"
     url: http://studio:3000/
     routes:
       - name: studio-all
@@ -233,15 +210,3 @@ services:
           hide_groups_header: true
           allow:
             - admin
-
-###############################################################################
-# ACL groups
-###############################################################################
-# anon consumer -> anon group
-# service_role consumer -> admin group
-# dashboard consumer -> admin group
-
-# Manually assign ACL groups via the consumer plugins below:
-# (Kong DB-less doesn't support consumer plugins inline in this format,
-#  so group membership is handled by the key-auth consumer names above
-#  matching the ACL allow list — adjust if using DB mode)
