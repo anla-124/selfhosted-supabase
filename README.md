@@ -106,6 +106,8 @@ API_EXTERNAL_URL=https://supabase.yourdomain.com
 
 Open Studio (see [Studio Access](#studio-access)) → SQL Editor → paste and run `MASTER-DATABASE-SETUP.sql`.
 
+If Studio later shows `Failed to fetch buckets` while `SELECT * FROM storage.buckets;` works in SQL, check whether `supabase_storage_admin` has `rolbypassrls = true`. If you add `BYPASSRLS` manually after deploy, restart the `storage` service so it reconnects with fresh role attributes.
+
 ### 7. Verify
 
 ```bash
