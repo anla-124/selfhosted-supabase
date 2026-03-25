@@ -106,7 +106,9 @@ API_EXTERNAL_URL=https://supabase.yourdomain.com
 
 Open Studio (see [Studio Access](#studio-access)) → SQL Editor → paste and run `MASTER-DATABASE-SETUP.sql`.
 
-If Studio later shows `Failed to fetch buckets` while `SELECT * FROM storage.buckets;` works in SQL, check whether `supabase_storage_admin` has `rolbypassrls = true`. If you add `BYPASSRLS` manually after deploy, restart the `storage` service so it reconnects with fresh role attributes.
+This stack's `db-setup` step also repairs the self-hosted Storage role bootstrap: it ensures `supabase_storage_admin` and `service_role` bypass RLS as expected, and grants `service_role` access on the `storage` schema tables used by Studio/admin flows.
+
+If Studio later shows `Failed to fetch buckets` while `SELECT * FROM storage.buckets;` works in SQL, first confirm `supabase_storage_admin` and `service_role` both have `rolbypassrls = true`, then restart the `storage` service so it reconnects with fresh role attributes.
 
 ### 7. Verify
 
