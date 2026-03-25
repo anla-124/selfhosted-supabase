@@ -53,10 +53,6 @@ services:
         strip_path: true
         paths:
           - /auth/v1/verify
-    plugins:
-      - name: key-auth
-        config:
-          hide_credentials: false
 
   - name: auth-v1-open-callback
     url: http://auth:9999/callback
@@ -65,10 +61,6 @@ services:
         strip_path: true
         paths:
           - /auth/v1/callback
-    plugins:
-      - name: key-auth
-        config:
-          hide_credentials: false
 
   - name: auth-v1-open-authorize
     url: http://auth:9999/authorize
@@ -77,10 +69,6 @@ services:
         strip_path: true
         paths:
           - /auth/v1/authorize
-    plugins:
-      - name: key-auth
-        config:
-          hide_credentials: false
 
   - name: auth-v1
     url: http://auth:9999/
