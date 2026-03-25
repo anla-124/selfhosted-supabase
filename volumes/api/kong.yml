@@ -201,6 +201,10 @@ services:
         strip_path: true
         paths:
           - /studio/
+      - name: studio-hostname-all
+        hosts:
+          - studio.anduincapital.dev
+        strip_path: false
     plugins:
       - name: basic-auth
         config:
@@ -210,11 +214,3 @@ services:
           hide_groups_header: true
           allow:
             - admin
-
-  - name: studio-hostname
-    url: http://studio:3000/
-    routes:
-      - name: studio-hostname-all
-        hosts:
-          - studio.anduincapital.dev
-        strip_path: false

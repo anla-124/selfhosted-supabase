@@ -105,6 +105,7 @@ services:
       KONG_NGINX_PROXY_PROXY_BUFFER_SIZE: 160k
       KONG_NGINX_PROXY_PROXY_BUFFERS: "64 160k"
       KONG_LOG_LEVEL: notice
+      KONG_DNS_NOT_FOUND_TTL: 1
       ANON_KEY: ${ANON_KEY}
       SERVICE_ROLE_KEY: ${SERVICE_ROLE_KEY}
       DASHBOARD_USERNAME: ${DASHBOARD_USERNAME:-supabase}
@@ -202,9 +203,10 @@ services:
       DB_AFTER_CONNECT_QUERY: "SET search_path TO _realtime"
       DB_ENC_KEY: supabaserealtime
       API_JWT_SECRET: ${JWT_SECRET}
-      FLY_ALLOC_ID: fly123
-      FLY_APP_NAME: realtime
+      APP_NAME: realtime
       SECRET_KEY_BASE: ${SECRET_KEY_BASE}
+      RUN_JANITOR: "true"
+      METRICS_JWT_SECRET: ${JWT_SECRET}
       ERL_AFLAGS: "-proto_dist inet_tcp"
       ENABLE_TAILSCALE: "false"
       DNS_NODES: "''"
@@ -214,7 +216,7 @@ services:
       # encrypted credentials (using DB_ENC_KEY), replacing any plain-text rows.
       SEED_SELF_HOST: "true"
     healthcheck:
-      test: ["CMD", "curl", "-sSfL", "--head", "-o", "/dev/null", "-H", "Authorization: Bearer ${ANON_KEY}", "http://localhost:4000/api/tenants/realtime-dev/health"]
+      test: ["CMD-SHELL", "curl -sSfL --head -o /dev/null -H \"Authorization: Bearer ${ANON_KEY}\" http://localhost:4000/api/tenants/realtime-dev/health"]
       interval: 10s
       timeout: 5s
       retries: 10
@@ -266,6 +268,8 @@ services:
     image: darthsim/imgproxy:v3.8.0
     expose:
       - "5001"
+    volumes:
+      - storage_data:/var/lib/storage
     environment:
       IMGPROXY_BIND: ":5001"
       IMGPROXY_LOCAL_FILESYSTEM_ROOT: /
