@@ -1,6 +1,6 @@
 # Self-Hosted Supabase for Dokploy
 
-Dokploy-compatible Supabase stack backing the [pdf-search](https://github.com/anla-124/pdf-search/) app.
+Dokploy-compatible, self-hosted Supabase stack. Drop-in replacement for managed Supabase.
 
 **Stack:** PostgreSQL 17 · pgvector · GoTrue · PostgREST · Realtime · Storage · Kong · Studio
 
@@ -102,10 +102,7 @@ API_EXTERNAL_URL=https://supabase.yourdomain.com
 
 ### 6. Run database setup
 
-> **Wait** until the `storage` service is healthy before this step.
-> `MASTER-DATABASE-SETUP.sql` references `storage.buckets` and `storage.objects`.
-
-`MASTER-DATABASE-SETUP.sql` lives in the **pdf-search** repository root. Copy its contents, then open Studio (see [Studio Access](#studio-access)) → SQL Editor → paste and run it.
+Open Studio (see [Studio Access](#studio-access)) → SQL Editor → run your app's database setup SQL (create tables, enable RLS, create policies, etc.).
 
 The `db-setup` service also runs automatically on every deploy: it ensures `supabase_storage_admin` has `BYPASSRLS`, resets internal role passwords to `POSTGRES_PASSWORD`, and grants `service_role` access on the `storage` schema.
 
@@ -121,27 +118,28 @@ curl https://supabase.yourdomain.com/auth/v1/health
 # PostgREST OpenAPI
 curl -H "apikey: <ANON_KEY>" https://supabase.yourdomain.com/rest/v1/
 
-# pgvector extension (run in Studio SQL editor)
+# pgvector extension (run in Studio SQL editor, only if using vector search)
 SELECT extname FROM pg_extension WHERE extname IN ('vector', 'uuid-ossp');
 # → 2 rows
 ```
 
-### 8. Configure pdf-search app
+### 8. Configure your app
 
-Set these in Dokploy's Environment Variables for the pdf-search service:
+Point your app at the self-hosted instance:
 
 ```env
 NEXT_PUBLIC_SUPABASE_URL=https://supabase.yourdomain.com
 NEXT_PUBLIC_SUPABASE_ANON_KEY=<ANON_KEY>
 SUPABASE_SERVICE_ROLE_KEY=<SERVICE_ROLE_KEY>
+```
 
-# Required if Cloudflare Access protects supabase.yourdomain.com.
-# Routes server-side Supabase calls directly to Kong inside Docker,
-# bypassing Cloudflare (which would intercept and return an HTML page).
+**If your app server runs in the same Docker network as Kong** (e.g. also deployed on Dokploy) and the Supabase URL is behind Cloudflare Access, add:
+
+```env
 SUPABASE_INTERNAL_URL=http://kong:8000
 ```
 
-> **Why `SUPABASE_INTERNAL_URL`?** The pdf-search container is on the same Docker network as Kong. Server-side Next.js code (route handlers, server components) calls Supabase internally. Without this, those calls go through the public URL → Cloudflare Access intercepts them → returns an HTML login page → JSON parse error. Browser/client-side code still uses `NEXT_PUBLIC_SUPABASE_URL` (the public URL) as normal.
+This routes server-side Supabase calls directly through the internal Docker network, bypassing Cloudflare (which would intercept the request and return an HTML page instead of JSON). Browser/client-side code still uses `NEXT_PUBLIC_SUPABASE_URL` as normal.
 
 ---
 
