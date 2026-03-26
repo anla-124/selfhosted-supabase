@@ -93,7 +93,10 @@ API_EXTERNAL_URL=https://supabase.yourdomain.com
 ### 5. Deploy via Dokploy
 
 1. In Dokploy: create a new **Compose** service and point it to this repo
-2. Add all `.env` values to Dokploy's **Environment Variables** tab (enable **Create Environment File**)
+2. Go to the **Environment** tab:
+   - Paste all values from your `.env` into the **Environment Variables** field
+   - Toggle **Create Environment File** ON — this writes the vars to `.env` on the server before the stack starts. Without this, services won't receive their configuration.
+   - Make sure `STUDIO_HOSTNAME` is included (e.g. `STUDIO_HOSTNAME=studio.yourdomain.com`) — Kong uses this to route browser requests to Studio
 3. Deploy — watch logs until all services are healthy
 4. In Dokploy **Domains**, add two domains — both pointing to the **kong** service → port `8000`:
    - `supabase.yourdomain.com` — API gateway (what the app connects to)
