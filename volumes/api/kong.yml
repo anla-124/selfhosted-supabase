@@ -191,7 +191,7 @@ services:
           - /studio/
       - name: studio-hostname-all
         hosts:
-          - studio.anduincapital.dev
+          - ${STUDIO_HOSTNAME}
         strip_path: false
     plugins:
       - name: basic-auth

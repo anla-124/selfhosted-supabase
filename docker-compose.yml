@@ -119,6 +119,7 @@ services:
       SERVICE_ROLE_KEY: ${SERVICE_ROLE_KEY}
       DASHBOARD_USERNAME: ${DASHBOARD_USERNAME:-supabase}
       DASHBOARD_PASSWORD: ${DASHBOARD_PASSWORD}
+      STUDIO_HOSTNAME: ${STUDIO_HOSTNAME}
     volumes:
       - ./volumes/api/kong.yml:/home/kong/temp.yml:ro
       - ./volumes/api/kong-startup.sh:/home/kong/startup.sh:ro

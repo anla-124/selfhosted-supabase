@@ -7,6 +7,7 @@ sed \
   -e "s|\${SERVICE_ROLE_KEY}|${SERVICE_ROLE_KEY}|g" \
   -e "s|\${DASHBOARD_USERNAME}|${DASHBOARD_USERNAME:-supabase}|g" \
   -e "s|\${DASHBOARD_PASSWORD}|${DASHBOARD_PASSWORD}|g" \
+  -e "s|\${STUDIO_HOSTNAME}|${STUDIO_HOSTNAME}|g" \
   /home/kong/temp.yml > /home/kong/kong.yml
 
 exec /docker-entrypoint.sh kong docker-start

@@ -105,7 +105,7 @@ API_EXTERNAL_URL=https://supabase.yourdomain.com
 > **Wait** until the `storage` service is healthy before this step.
 > `MASTER-DATABASE-SETUP.sql` references `storage.buckets` and `storage.objects`.
 
-Open Studio (see [Studio Access](#studio-access)) → SQL Editor → paste and run `MASTER-DATABASE-SETUP.sql`.
+`MASTER-DATABASE-SETUP.sql` lives in the **pdf-search** repository root. Copy its contents, then open Studio (see [Studio Access](#studio-access)) → SQL Editor → paste and run it.
 
 The `db-setup` service also runs automatically on every deploy: it ensures `supabase_storage_admin` has `BYPASSRLS`, resets internal role passwords to `POSTGRES_PASSWORD`, and grants `service_role` access on the `storage` schema.
 
