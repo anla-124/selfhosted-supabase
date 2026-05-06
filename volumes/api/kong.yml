@@ -185,10 +185,6 @@ services:
   - name: studio
     url: http://studio:3000/
     routes:
-      - name: studio-all
-        strip_path: true
-        paths:
-          - /studio/
       - name: studio-hostname-all
         hosts:
           - ${STUDIO_HOSTNAME}

@@ -15,7 +15,6 @@ Browser → Traefik (Dokploy) → Kong :8000 → internal services
                                   ├── /realtime/v1/*  → Realtime :4000 (WebSocket)
                                   ├── /storage/v1/*   → Storage :5000
                                   ├── /pg-meta/*      → Meta :8080
-                                  ├── /studio/*       → Studio :3000 (path-based)
                                   └── studio.host     → Studio :3000 (hostname-based)
 ```
 

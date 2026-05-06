@@ -14,7 +14,7 @@ Dokploy-compatible, self-hosted Supabase stack. Drop-in replacement for managed 
 | `.env.example` | Environment template — copy to `.env` |
 | `volumes/api/kong.yml` | Kong API gateway routing |
 | `volumes/api/kong-startup.sh` | Substitutes env vars into kong.yml at container start |
-| `volumes/db/init/01_pgvector.sql` | Safety-net extension init (runs on first DB start) |
+| `volumes/db/init/01_pgvector.sql` | Optional extension reference — not mounted or executed by this Compose stack |
 | `.gitignore` | Excludes `.env` and data directories |
 
 ---
@@ -38,7 +38,7 @@ Edit `.env` — every value marked `change-me` must be replaced.
 openssl rand -hex 32   # POSTGRES_PASSWORD
 openssl rand -hex 32   # JWT_SECRET
 openssl rand -hex 32   # SECRET_KEY_BASE
-openssl rand -hex 32   # VAULT_ENC_KEY
+openssl rand -hex 32   # REALTIME_DB_ENC_KEY
 openssl rand -hex 32   # PG_META_CRYPTO_KEY
 openssl rand -hex 32   # DASHBOARD_PASSWORD
 ```
@@ -80,12 +80,12 @@ Copy the output into `.env`.
 
 ### 4. Set URLs correctly
 
-> **Critical:** `SITE_URL` must be the pdf-search Next.js app URL, **not** the Supabase URL.
+> **Critical:** `SITE_URL` must be your app's URL, **not** the Supabase URL.
 > OAuth redirects go to `SITE_URL/auth/callback`.
 
 ```env
-SITE_URL=https://pdfsearch.yourdomain.com
-ADDITIONAL_REDIRECT_URLS=https://pdfsearch.yourdomain.com/**
+SITE_URL=https://app.yourdomain.com
+ADDITIONAL_REDIRECT_URLS=https://app.yourdomain.com/**
 SUPABASE_PUBLIC_URL=https://supabase.yourdomain.com
 API_EXTERNAL_URL=https://supabase.yourdomain.com
 ```
@@ -146,6 +146,50 @@ This routes server-side Supabase calls directly through the internal Docker netw
 
 ---
 
+## Backup and Restore
+
+The stack stores all persistent state in two named Docker volumes:
+
+| Volume | Contents |
+|--------|----------|
+| `db_data_v4` | All Postgres data (tables, auth users, realtime state) |
+| `storage_data` | Uploaded files (shared between `storage` and `imgproxy`) |
+
+Dokploy project renames, volume deletion, or host migration will lose this data unless you have external backups. Schedule the commands below via Dokploy cron, server cron, or an external backup service.
+
+### Backup
+
+```bash
+# Postgres — logical dump (run from the host, replace <container> with the db container name)
+docker exec <db-container> pg_dumpall -U supabase_admin > backup-$(date +%Y%m%d).sql
+
+# Storage files — copy the volume contents
+docker run --rm \
+  -v selfhosted-supabase_storage_data:/data \
+  -v $(pwd):/backup \
+  alpine tar czf /backup/storage-$(date +%Y%m%d).tar.gz -C /data .
+```
+
+> The volume name prefix (`selfhosted-supabase_`) is set by Docker Compose from the project directory name. Adjust if your Dokploy project name differs.
+
+### Restore
+
+```bash
+# Postgres — restore from dump into a fresh/empty db container (disaster recovery only,
+# do not replay over an already-initialized running database)
+docker exec -i <db-container> psql -v ON_ERROR_STOP=1 -U supabase_admin -d postgres < backup-YYYYMMDD.sql
+
+# Storage files — extract back into the volume
+docker run --rm \
+  -v selfhosted-supabase_storage_data:/data \
+  -v $(pwd):/backup \
+  alpine tar xzf /backup/storage-YYYYMMDD.tar.gz -C /data
+```
+
+After restoring Postgres, restart all services so connections are re-established with fresh state.
+
+---
+
 ## Studio Access
 
 Studio provides full admin access to the database. Kong routes requests to `studio.yourdomain.com` directly to the Studio container using hostname-based routing with HTTP Basic Auth.
@@ -182,7 +226,7 @@ Supabase Realtime uses WebSocket connections at `/realtime/v1/websocket`. Traefi
 
 In Dokploy UI → `supabase.yourdomain.com` domain → **Advanced settings** → enable **WebSocket support**.
 
-**Verify:** Upload a document in pdf-search and confirm the processing status updates live without page refresh.
+**Verify:** Upload a file and confirm the processing status updates live without page refresh.
 
 ---
 
@@ -220,7 +264,7 @@ SMTP_ADMIN_EMAIL=admin@example.com
 
 ## PostgreSQL Version
 
-This stack uses **PostgreSQL 17** (`supabase/postgres:17.6.1.097`) to match the pdf-search app's `supabase/config.toml` (`major_version = 17`). This prevents `pg_dump` compatibility issues if you migrate from a managed Supabase instance.
+This stack uses **PostgreSQL 17** (`supabase/postgres:17.6.1.097`). Update the image tag if your app requires a different major version. This prevents `pg_dump` compatibility issues if you migrate from a managed Supabase instance.
 
 ---
 
