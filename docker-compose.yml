@@ -198,6 +198,13 @@ services:
   realtime:
     <<: *supabase-common
     image: supabase/realtime:v2.33.72
+    # Realtime derives the tenant id from the upstream host. The official
+    # Supabase stack routes websocket traffic to realtime-dev.supabase-realtime
+    # so that the seeded realtime-dev tenant is selected.
+    networks:
+      dokploy-network:
+        aliases:
+          - realtime-dev.supabase-realtime
     expose:
       - "4000"
     depends_on:

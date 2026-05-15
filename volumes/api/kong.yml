@@ -132,7 +132,7 @@ services:
               - Content-Profile:graphql_public
 
   - name: realtime-v1
-    url: http://realtime:4000/socket/
+    url: http://realtime-dev.supabase-realtime:4000/socket/
     routes:
       - name: realtime-v1-all
         strip_path: true
@@ -141,7 +141,7 @@ services:
     plugins:
       - name: key-auth
         config:
-          hide_credentials: true
+          hide_credentials: false
       - name: acl
         config:
           hide_groups_header: true
