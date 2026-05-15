@@ -38,7 +38,7 @@ Edit `.env` — every value marked `change-me` must be replaced.
 openssl rand -hex 32   # POSTGRES_PASSWORD
 openssl rand -hex 32   # JWT_SECRET
 openssl rand -hex 32   # SECRET_KEY_BASE
-openssl rand -hex 32   # REALTIME_DB_ENC_KEY
+openssl rand -hex 8    # REALTIME_DB_ENC_KEY (16 chars; Realtime uses AES-128)
 openssl rand -hex 32   # PG_META_CRYPTO_KEY
 openssl rand -hex 32   # DASHBOARD_PASSWORD
 ```
