@@ -40,6 +40,7 @@ plugins:
         - Date
         - apikey
         - Authorization
+        - x-supabase-api-version
       exposed_headers:
         - X-Auth-Token
       credentials: true
